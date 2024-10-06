@@ -1,13 +1,7 @@
 import "@stdlib/deploy";
-message Add {
-    queryId: Int as uint64;
-    amount: Int as uint32;
-}
-message AddEvent {
-    queryId: Int as uint64;
-    amount: Int as uint32;
-    counter: Int as uint32;
-}
+
+// import "@stdlib/ownable";
+
 message ChangeOwner {
     newOwner: Address;
 }
@@ -55,27 +49,40 @@ message CreateNewRaffleMessage {
     key: Int as uint256;
     randomnessCommitment: Int as uint256;
 }
+message CreateNewRaffle {
+    key: Int as uint256;
+    randomnessCommitment: Int as uint256;
+}
+// structs
 struct Raffle {
     randomnessCommitment: Int as uint256;
     currentRandomness: Int as uint256;
     commitmentOpened: Bool;
     playerNonces: map<Address, Int as uint256>;
 }
+struct Node {
+    value: Int as uint256;
+    left: Address?;
+    leftSum: Int as uint256;
+    right: Address?;
+    rightSum: Int as uint256;
+}
+struct Tree {
+    root: Address;
+    totalSum: Int as uint256;
+    nodes: map<Address, Node>;
+}
 
 contract TonTut with Deployable {
-    id: Int as uint32;
-    counter: Int as uint32;
     owner: Address;
-    init(id: Int){
-        self.id = id;
-        self.counter = 0;
+    rafflesBuffer: map<Int as uint256, Raffle>;
+    treesBuffer: map<Int as uint256, Tree>;
+    currentIndex: Int as int8;
+    maxIndex: Int as int8;
+    init(maxIndex: Int){
+        self.currentIndex = 0;
+        self.maxIndex = maxIndex;
         self.owner = sender();
-    }
-
-    receive(msg: Add){
-        self.counter += msg.amount;
-        emit("Counter incremented".asComment());
-        emit(AddEvent{queryId: msg.queryId, amount: msg.amount, counter: self.counter}.toCell());
     }
 
     receive("pause"){}
@@ -90,15 +97,42 @@ contract TonTut with Deployable {
         self.owner = msg.newOwner;
     }
 
-    get fun counter(): Int {
-        return self.counter;
-    }
-
-    get fun id(): Int {
-        return self.id;
-    }
-
     get fun owner(): Address {
         return self.owner;
     }
+
+    fun increaseIndex() {
+        self.currentIndex += 1;
+        if (self.currentIndex > self.maxIndex) {
+            self.currentIndex = 0;
+        }
+    }
+
+    receive(msg: CreateNewRaffleMessage){
+        self.rafflesBuffer.set(self.currentIndex,
+            Raffle{
+                randomnessCommitment: msg.randomnessCommitment,
+                currentRandomness: 0,
+                commitmentOpened: false,
+                playerNonces: emptyMap()
+            }
+        );
+        self.treesBuffer.set(self.currentIndex,
+            Tree{root: newAddress(0, 0x7fFFfFfFFFfFFFFfFffFfFfFfffFFfFfFffFFFFf), totalSum: 0, nodes: emptyMap()}
+        );
+        self.increaseIndex();
+        emit(RaffleCreatedEvent{raffleId: self.currentIndex, randomnessCommitment: msg.randomnessCommitment}.toCell());
+    }
+
+    // function initialize(Tree storage self) internal {
+    //     self.root = address(0x7fFFfFfFFFfFFFFfFffFfFfFfffFFfFfFffFFFFf);
+    //     self.totalSum = 0;
+    // }
+    //   function newRaffle(bytes32 raffleId, bytes32 randomnessCommitment) external whenNotPaused onlyOwner {
+    //     if (raffleExists[raffleId]) revert RaffleAlreadyExists();
+    //     raffles[raffleId].tree.initialize();
+    //     raffles[raffleId].randomnessCommitment = randomnessCommitment;
+    //     raffles[raffleId].currentRandomness = randomnessCommitment;
+    //     emit RaffleCreated(raffleId, randomnessCommitment);
+    // }
 }
