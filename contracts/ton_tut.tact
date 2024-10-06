@@ -1,5 +1,6 @@
 import "@stdlib/deploy";
 import "@stdlib/ownable";
+import "@stdlib/stoppable";
 message CrackTheEggMessage {
     data: Int as uint256;
 }
@@ -68,24 +69,18 @@ struct Tree {
     nodes: map<Address, Node>;
 }
 
-contract TonTut with Deployable, OwnableTransferable {
+contract TonTut with Deployable, OwnableTransferable, Stoppable {
     owner: Address;
+    stopped: Bool;
     rafflesBuffer: map<Int as uint256, Raffle>;
     treesBuffer: map<Int as uint256, Tree>;
     currentIndex: Int as int8;
     maxIndex: Int as int8;
     init(maxIndex: Int){
+        self.stopped = false;
         self.currentIndex = 0;
         self.maxIndex = maxIndex;
         self.owner = sender();
-    }
-
-    receive("pause"){
-        self.requireOwner();
-    }
-
-    receive("unpause"){
-        self.requireOwner();
     }
 
     receive(msg: CrackTheEggMessage){
@@ -104,6 +99,7 @@ contract TonTut with Deployable, OwnableTransferable {
     }
 
     receive(msg: CreateNewRaffleMessage){
+        self.requireNotStopped(); // cant work if a contract is stopped
         self.rafflesBuffer.set(self.currentIndex,
             Raffle{
                 randomnessCommitment: msg.randomnessCommitment,
