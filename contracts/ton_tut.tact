@@ -1,10 +1,5 @@
 import "@stdlib/deploy";
-
-// import "@stdlib/ownable";
-
-message ChangeOwner {
-    newOwner: Address;
-}
+import "@stdlib/ownable";
 message CrackTheEggMessage {
     data: Int as uint256;
 }
@@ -73,7 +68,7 @@ struct Tree {
     nodes: map<Address, Node>;
 }
 
-contract TonTut with Deployable {
+contract TonTut with Deployable, OwnableTransferable {
     owner: Address;
     rafflesBuffer: map<Int as uint256, Raffle>;
     treesBuffer: map<Int as uint256, Tree>;
@@ -85,19 +80,19 @@ contract TonTut with Deployable {
         self.owner = sender();
     }
 
-    receive("pause"){}
+    receive("pause"){
+        self.requireOwner();
+    }
 
-    receive("unpause"){}
+    receive("unpause"){
+        self.requireOwner();
+    }
 
     receive(msg: CrackTheEggMessage){
         emit(CrackTheEggEvent{sender: sender(), timestamp: now(), data: msg.data}.toCell());
     }
 
-    receive(msg: ChangeOwner){
-        self.owner = msg.newOwner;
-    }
-
-    get fun owner(): Address {
+    get fun getOwner(): Address {
         return self.owner;
     }
 
