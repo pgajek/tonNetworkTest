@@ -24,3 +24,12 @@
 ### Add a new contract
 
 `npx blueprint create ContractName` or `yarn blueprint create ContractName`
+
+
+## Explanations
+
+#### For more information about working with Stoppable/Resumable functionality, see:
+`https://github.com/tact-lang/tact/blob/main/stdlib/libs/ownable.tact`
+
+#### For more information about working with Resumable functionality, see:
+`https://github.com/tact-lang/tact/blob/main/stdlib/libs/stoppable.tact`

@@ -69,7 +69,7 @@ struct Tree {
     nodes: map<Address, Node>;
 }
 
-contract TonTut with Deployable, OwnableTransferable, Stoppable {
+contract TonTut with Deployable, OwnableTransferable, Resumable {
     owner: Address;
     stopped: Bool;
     rafflesBuffer: map<Int as uint256, Raffle>;
