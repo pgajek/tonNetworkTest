@@ -29,7 +29,7 @@
 ## Explanations
 
 #### For more information about working with Stoppable/Resumable functionality, see:
-`https://github.com/tact-lang/tact/blob/main/stdlib/libs/ownable.tact`
-
-#### For more information about working with Resumable functionality, see:
 `https://github.com/tact-lang/tact/blob/main/stdlib/libs/stoppable.tact`
+
+#### For more information about working with Ownable functionality, see:
+`https://github.com/tact-lang/tact/blob/main/stdlib/libs/ownable.tact`

@@ -13,39 +13,17 @@ message RaffleCreatedEvent {
     raffleId: Int as uint256;
     randomnessCommitment: Int as uint256;
 }
-message PlayerAmountIncreasedEvent {
-    raffleId: Int as uint256;
-    player: Address;
-    amount: Int as uint256;
-    nonce: Int as uint256;
-}
-message WinnerDeclaredEvent {
-    raffleId: Int as uint256;
-    winner: Address;
-}
-message GetRaffleMessage {
-    key: Int as uint256;
-}
-message GetRaffleRandomnessCommitmentMessage {
-    key: Int as uint256;
-}
-message GetRaffleCurrentRandomnessMessage {
-    key: Int as uint256;
-}
-message GetRaffleCommitmentOpenedMessage {
-    key: Int as uint256;
-}
-message GetRaffleExistsMessage {
-    key: Int as uint256;
-}
-message GetTotalSumMessage {
-    key: Int as uint256;
-}
+// message PlayerAmountIncreasedEvent {
+//     raffleId: Int as uint256;
+//     player: Address;
+//     amount: Int as uint256;
+//     nonce: Int as uint256;
+// }
+// message WinnerDeclaredEvent {
+//     raffleId: Int as uint256;
+//     winner: Address;
+// }
 message CreateNewRaffleMessage {
-    key: Int as uint256;
-    randomnessCommitment: Int as uint256;
-}
-message CreateNewRaffle {
     key: Int as uint256;
     randomnessCommitment: Int as uint256;
 }
@@ -103,7 +81,7 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
         self.rafflesBuffer.set(self.currentIndex,
             Raffle{
                 randomnessCommitment: msg.randomnessCommitment,
-                currentRandomness: 0,
+                currentRandomness: msg.randomnessCommitment,
                 commitmentOpened: false,
                 playerNonces: emptyMap()
             }
@@ -115,15 +93,28 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
         emit(RaffleCreatedEvent{raffleId: self.currentIndex, randomnessCommitment: msg.randomnessCommitment}.toCell());
     }
 
-    // function initialize(Tree storage self) internal {
-    //     self.root = address(0x7fFFfFfFFFfFFFFfFffFfFfFfffFFfFfFffFFFFf);
-    //     self.totalSum = 0;
-    // }
-    //   function newRaffle(bytes32 raffleId, bytes32 randomnessCommitment) external whenNotPaused onlyOwner {
-    //     if (raffleExists[raffleId]) revert RaffleAlreadyExists();
-    //     raffles[raffleId].tree.initialize();
-    //     raffles[raffleId].randomnessCommitment = randomnessCommitment;
-    //     raffles[raffleId].currentRandomness = randomnessCommitment;
-    //     emit RaffleCreated(raffleId, randomnessCommitment);
-    // }
+    get fun getRaffle(key: Int): Raffle? {
+        let raffle = self.rafflesBuffer.get(key);
+        return raffle;
+    }
+
+    get fun getRaffleRandomnessCommitment(key: Int): Int {
+        let raffle = self.rafflesBuffer.get(key);
+        return raffle!!.randomnessCommitment;
+    }
+
+    get fun getRaffleCurrentRandomness(key: Int): Int {
+        let raffle = self.rafflesBuffer.get(key);
+        return raffle!!.currentRandomness;
+    }
+
+    get fun getRaffleCommitmentOpened(key: Int): Bool {
+        let raffle = self.rafflesBuffer.get(key);
+        return raffle!!.commitmentOpened;
+    }
+
+    get fun getTotalSum(key: Int): Int {
+        let tree = self.treesBuffer.get(key);
+        return tree!!.totalSum;
+    }
 }
