@@ -94,26 +94,31 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
     }
 
     get fun getRaffle(key: Int): Raffle? {
+        require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
         let raffle = self.rafflesBuffer.get(key);
         return raffle;
     }
 
     get fun getRaffleRandomnessCommitment(key: Int): Int {
+        require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
         let raffle = self.rafflesBuffer.get(key);
         return raffle!!.randomnessCommitment;
     }
 
     get fun getRaffleCurrentRandomness(key: Int): Int {
+        require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
         let raffle = self.rafflesBuffer.get(key);
         return raffle!!.currentRandomness;
     }
 
     get fun getRaffleCommitmentOpened(key: Int): Bool {
+        require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
         let raffle = self.rafflesBuffer.get(key);
         return raffle!!.commitmentOpened;
     }
 
     get fun getTotalSum(key: Int): Int {
+        require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
         let tree = self.treesBuffer.get(key);
         return tree!!.totalSum;
     }
