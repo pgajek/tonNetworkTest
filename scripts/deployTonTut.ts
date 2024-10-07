@@ -19,7 +19,7 @@ export async function run(provider: NetworkProvider) {
 
     await provider.waitForDeploy(tonTut.address);
 
-    console.log("Id", await tonTut.getId());
+    // console.log("Id", await tonTut.getId());
 
     // run methods on `tonTut`
 }
