@@ -122,4 +122,100 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
         let tree = self.treesBuffer.get(key);
         return tree!!.totalSum;
     }
+
+    // trees functions
+
+    fun insert(key: Int,account: Address, amount: Int) {
+        require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
+        let currentTree = self.treesBuffer.get(key);
+        let parent: Address? = newAddress(0,0);
+        let current: Address = currentTree!!.root;
+        let shouldBreak: Bool = false;
+        while (current != newAddress(0,0) || shouldBreak) {
+            parent = current;
+
+            let uintParent  = parent!!.toString().asSlice().loadUint(256);
+            let uintAccount = account.toString().asSlice().loadUint(256);
+
+            if (parent == account) {
+                shouldBreak = true;
+            } else if (uintParent > uintAccount) {
+                let parentNode: Node = currentTree!!.nodes.get(parent!!)!!;
+                parentNode.leftSum += amount;
+                current = parentNode.left!!;
+                if (current == newAddress(0,0)) {
+                    let node: Node = currentTree!!.nodes.get(parent!!)!!;
+                        node.left = account;
+                }
+            } else {
+                let node: Node = currentTree!!.nodes.get(parent!!)!!;
+                node.rightSum += amount;
+                currentTree!!.nodes.set(parent!!, node);
+                current = node.right!!;
+                if (current == newAddress(0,0)) {
+                    let parentNode: Node = currentTree!!.nodes.get(parent!!)!!;
+                    parentNode.right = account;
+                    currentTree!!.nodes.set(parent!!, parentNode);
+                }
+            }
+        }
+
+        if (current == newAddress(0,0)) {
+            currentTree!!.nodes.set(account, Node{
+                value: amount,
+                left: null,
+                leftSum: 0,
+                right: null,
+                rightSum: 0
+            });
+        } else {
+            let node: Node = currentTree!!.nodes.get(current)!!;
+            node.value += amount;
+        }
+
+        if (currentTree != null) {
+            let tree: Tree = currentTree!!;
+            tree.totalSum += amount;
+        }
+    }
+
+    get fun get(key: Int,account: Address): Int {
+         require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
+        let currentTree = self.treesBuffer.get(key);
+        let current: Address = currentTree!!.root;
+
+        let uintCurrent = current.toString().asSlice().loadUint(256);
+        let uintAccount = account.toString().asSlice().loadUint(256);
+        while (current != newAddress(0,0)) {
+            if (current == account) {
+                let node: Node = currentTree!!.nodes.get(current)!!;
+                return node.value;
+            } else if (uintCurrent > uintAccount) {
+                current = currentTree!!.nodes.get(current)!!.left!!;
+            } else {
+                current = currentTree!!.nodes.get(current)!!.right!!;
+            }
+        }
+
+        return 0; 
+    }
+
+    get fun getByPointOnInterval(key: Int, value: Int): Address? {
+         require(key < 0 || key >= self.currentIndex, "Raffle with this key does not exist");
+        let currentTree = self.treesBuffer.get(key);
+        let current: Address = currentTree!!.root;
+
+        while (current != newAddress(0,0)) {
+            if (value < currentTree!!.nodes.get(current)!!.leftSum) {
+                current = currentTree!!.nodes.get(current)!!.left!!;
+            } else if (value < currentTree!!.nodes.get(current)!!.leftSum + currentTree!!.nodes.get(current)!!.value) {
+                return current;
+            } else {
+                value -= currentTree!!.nodes.get(current)!!.leftSum + currentTree!!.nodes.get(current)!!.value;
+                current = currentTree!!.nodes.get(current)!!.right!!;
+            }
+        }
+
+        return null; 
+    }
 }
