@@ -27,10 +27,17 @@ message PlayerAmountIncreasedEvent {
     amount: Int as uint256;
     nonce: Int as uint256;
 }
-// message WinnerDeclaredEvent {
-//     raffleId: Int as uint256;
-//     winner: Address;
-// }
+message GetWinnerMessage {
+    raffleId: Int as uint256;
+    randomnessOpening: String;
+}
+message ChangeSignerMessage {
+   newSigner: Address;
+}
+message WinnerDeclaredEvent {
+    raffleId: Int as uint256;
+    winner: Address;
+}
 message CreateNewRaffleMessage {
     key: Int as uint256;
     randomnessCommitment: Int as uint256;
@@ -41,6 +48,7 @@ struct Raffle {
     currentRandomness: Int as uint256;
     commitmentOpened: Bool;
     playerNonces: map<Address, Int as uint256>;
+    winner: Address?;
 }
 struct Node {
     value: Int as uint256;
@@ -58,20 +66,20 @@ message InsertMessage {
     key: Int as uint256;
 }
 // TODO: implement replys
-contract TonTut with Deployable, OwnableTransferable, Resumable {
+contract TonTut with Deployable, Ownable, Resumable {
     owner: Address;
+    signer: Address;
     stopped: Bool;
     rafflesBuffer: map<Int as uint256, Raffle>;
     treesBuffer: map<Int as uint256, Tree>;
     currentIndex: Int as int8;
     maxIndex: Int as int8;
-    checker: Bool;
-    init(maxIndex: Int){
+    init(maxIndex: Int, signer: Address){
         self.stopped = false;
         self.currentIndex = 0;
         self.maxIndex = maxIndex;
         self.owner = sender();
-        self.checker = false;
+        self.signer = signer;
     }
 
     receive(msg: CrackTheEggMessage){
@@ -80,6 +88,14 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
 
     get fun getOwner(): Address {
         return self.owner;
+    }
+    get fun getSigner(): Address {
+        return self.signer;
+    }
+
+    receive(msg: ChangeSignerMessage){
+        self.requireOwner();
+        self.signer = msg.newSigner;
     }
 
     fun increaseIndex() {
@@ -138,6 +154,27 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
         emit(PlayerAmountIncreasedEvent{raffleId: msg.raffleId, player: msg.account, amount: msg.amount, nonce: accountNonce!!}.toCell());
     }
 
+    receive(msg: GetWinnerMessage){
+        self.requireNotStopped();
+        self.requireOwner();
+     
+        let raffle = self.rafflesBuffer.get(msg.raffleId)!!;
+    
+        require(sha256(msg.randomnessOpening) == raffle.randomnessCommitment, "Invalid randomness openin");
+       
+        require(!raffle.commitmentOpened,"Raffle commitment already opened");
+      
+        raffle.commitmentOpened = true;
+        self.rafflesBuffer.set(msg.raffleId, raffle);
+        let serializeData = beginString().concat(raffle.currentRandomness.toString()).concat(msg.randomnessOpening);
+        let currentRandomness = sha256(serializeData.toString());
+        let max: Int = self.getTotalSum(msg.raffleId);
+        let boundedRandomness: Int = self.boundOrDefault(currentRandomness, 0, max);
+        let winner: Address? = self.getByPointOnInterval(msg.raffleId, boundedRandomness);
+        raffle.winner = winner;
+        self.rafflesBuffer.set(msg.raffleId, raffle);
+        emit(WinnerDeclaredEvent{raffleId: msg.raffleId, winner: winner!!}.toCell());  
+    }
     get fun getRaffle(key: Int): Raffle? {
         require(key >= 0 && key <= self.maxIndex, "Raffle with this key does not exist");
         let raffle = self.rafflesBuffer.get(key);
@@ -184,40 +221,62 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
         let shouldIterate: Bool = true;
         while(current != null && shouldIterate) {
             parent = current!!;
-           
+            
             if(parent == account) {
+                // dump("yep");
                 shouldIterate = false;
             } else if (parent.asSlice().hash() < account.asSlice().hash()) {
-                let node: Node = currentTree.nodes.get(parent)!!;
-                node.leftSum += amount;
+                let node: Node? = currentTree.nodes.get(parent);
+                let newNode: Node = Node{
+                                    value: 0,
+                                    left: null,
+                                    leftSum: 0,
+                                    right: null,
+                                    rightSum: 0
+                                };
+                if(node == null){
+                   newNode.leftSum += amount;
+                }else{
+                    newNode.leftSum = node!!.leftSum +amount;
+                }
+
                 currentTree.nodes.set(parent, node);
-                current = node.left;
+                current = newNode.left;
                 if(current == null){
-                    node.left = account;
-                    currentTree.nodes.set(parent, node);
+                    newNode.left = account;
+                    currentTree.nodes.set(parent, newNode);
                     current = account;
                 }
-                shouldIterate = false;
             } else {
-                let node: Node = currentTree.nodes.get(parent)!!;
-                node.rightSum += amount;
+                let node: Node? = currentTree.nodes.get(parent);
+                let newNode: Node = Node{
+                    value: 0,
+                    left: null,
+                    leftSum: 0,
+                    right: null,
+                    rightSum: 0
+                };
+                if(node == null){
+                   newNode.rightSum += amount;
+                }else{
+                    newNode.rightSum = node!!.rightSum +amount;
+                }
+
                 currentTree.nodes.set(parent, node);
-                let tree = currentTree;
-                tree.nodes.set(parent, node);
-               
-                current = node.right;
+           
+                current = newNode.right;
                 if(current == null){
-                    node.right = account;
-                    let tree2 = tree;
-                    tree2.nodes.set(parent, node);
+                    newNode.right = account;
+                    
+                    currentTree.nodes.set(parent, newNode);
                     current = account;
                 }
-                shouldIterate = false;
             }
 
         }
 
         if (current == null) {
+            // dump("yep2");
             currentTree.nodes.set(account, Node{
                 value: amount,
                 left: null,
@@ -226,18 +285,28 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
                 rightSum: 0
             });
         } else {
-            let node: Node = currentTree.nodes.get(current!!)!!;
-            node.value += amount;
-            currentTree.nodes.set(current!!, node);
+            // dump("yep3");
+            let node: Node? = currentTree.nodes.get(current!!);
+            let newNode: Node = Node{
+                value: 0,
+                left: null,
+                leftSum: 0,
+                right: null,
+                rightSum: 0
+            };
+            if(node == null){
+                newNode.value = amount;
+            } else {
+                newNode.value += amount;
+            }
+            currentTree.nodes.set(current!!, newNode);
         }
         let tree: Tree = currentTree;
         tree.totalSum += amount;
 
         self.treesBuffer.set(key, tree);
     }
-    get fun checkerState(): Bool {
-        return self.checker;
-    }
+
     get fun getTreeAccountValue(key: Int,account: Address): Int {
          require(key >= 0 && key <= self.maxIndex, "Raffle with this key does not exist");
         let currentTree = self.treesBuffer.get(key);
@@ -260,21 +329,43 @@ contract TonTut with Deployable, OwnableTransferable, Resumable {
     }
 
     get fun getByPointOnInterval(key: Int, value: Int): Address? {
-         require(key >= 0 && key <= self.maxIndex, "Raffle with this key does not exist");
-        let currentTree = self.treesBuffer.get(key);
-        let current: Address = currentTree!!.root;
+        require(key >= 0 && key <= self.maxIndex, "Raffle with this key does not exist");
+        let currentTree = self.treesBuffer.get(key)!!;
+        let current: Address? = currentTree.root;
 
-        while (current != newAddress(0,0)) {
-            if (value < currentTree!!.nodes.get(current)!!.leftSum) {
-                current = currentTree!!.nodes.get(current)!!.left!!;
-            } else if (value < currentTree!!.nodes.get(current)!!.leftSum + currentTree!!.nodes.get(current)!!.value) {
+        while (current != null) {
+            let node: Node? = currentTree.nodes.get(current!!);
+            // dump(node!!.leftSum);
+            // dump(node!!.value);
+            if(value < node!!.leftSum){
+                current = node!!.left;
+            } else if(value < node!!.leftSum + node!!.value){
                 return current;
             } else {
-                value -= currentTree!!.nodes.get(current)!!.leftSum + currentTree!!.nodes.get(current)!!.value;
-                current = currentTree!!.nodes.get(current)!!.right!!;
+                value -= node!!.leftSum + node!!.value;
+                current = node!!.right;
             }
         }
 
         return null; 
+    }
+
+    fun boundOrDefault(value: Int, min: Int, max: Int): Int {
+        let uint256Max: Int = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
+        if(max > min){
+            let range: Int = max - min;
+            while(range * (uint256Max / range) <= value){
+                value = sha256(value.toString());
+            }
+            return min + (value % range);
+        }else{
+            return 0;
+        }
+    }
+
+    get fun getWinner(key: Int): Address? {
+        require(key >= 0 && key <= self.maxIndex, "Raffle with this key does not exist");
+        let raffle = self.rafflesBuffer.get(key);
+        return raffle!!.winner;
     }
 }
